@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuizNet Pro - Hệ Thống Thi Trắc Nghiệm Trực Tuyến</title>
+  <meta name="description" content="Website thi trắc nghiệm trực tuyến hỗ trợ phòng thi mạng theo thời gian thực (WebSockets), chế độ luyện tập, phân loại độ khó câu hỏi và thống kê biểu đồ.">
+  
+  <!-- CSS Stylesheet & Chart.js -->
+  <link rel="stylesheet" href="/static/css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- ==================== HEADER & THANH ĐIỀU HƯỚNG ==================== -->
+  <header class="app-header">
+    <div class="brand-container" id="brand-logo" onclick="switchTab('rooms')">
+      <div class="brand-icon-box">🌐</div>
+      <div class="brand-text">
+        <h1>QuizNet Pro</h1>
+        <span>Mạng Máy Tính &amp; Trắc Nghiệm</span>
+      </div>
+    </div>
+
+    <!-- Thanh Menu Tabs -->
+    <nav class="nav-tabs" aria-label="Điều hướng chính">
+      <button class="nav-tab-btn active" data-tab="rooms" id="nav-btn-rooms">
+        <span>🏢</span> Phòng Thi
+      </button>
+      <button class="nav-tab-btn" data-tab="practice" id="nav-btn-practice">
+        <span>⚡</span> Luyện Tập
+      </button>
+      <button class="nav-tab-btn" data-tab="bank" id="nav-btn-bank">
+        <span>📚</span> Ngân Hàng Câu Hỏi
+      </button>
+      <button class="nav-tab-btn" data-tab="history" id="nav-btn-history">
+        <span>📊</span> Lịch Sử &amp; Thống Kê
+      </button>
+    </nav>
+
+    <!-- Thông tin người dùng & Trạng thái mạng -->
+    <div class="header-actions">
+      <div class="network-badge" id="network-status-badge" title="Trạng thái kết nối WebSocket">
+        <span class="pulse-dot"></span>
+        <span>Trực tuyến</span>
+      </div>
+
+      <!-- Nút chuyển đổi Giao diện Sáng / Tối -->
+      <button class="theme-toggle-btn" id="btn-toggle-theme" title="Chuyển đổi giao diện Sáng / Tối">
+        <span id="theme-toggle-icon">🌙</span>
+        <span id="theme-toggle-text" style="font-size:0.8rem;">Tối</span>
+      </button>
+
+      <div class="user-profile-badge" id="btn-change-user-name" title="Bấm để đổi tên">
+        <div class="user-avatar-circle" id="header-user-avatar">T</div>
+        <span class="user-name-text" id="header-user-name">Thí sinh</span>
+        <span style="font-size: 0.75rem; color: var(--text-dim);">✏️</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== NỘI DUNG CHÍNH ==================== -->
+  <main class="main-content-container">
+
+    <!-- TAB 1: PHÒNG THI TRỰC TUYẾN -->
+    <section class="tab-pane active" id="tab-rooms">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2><span>🏢</span> Danh Sách Phòng Thi Mạng</h2>
+          <p>Tạo phòng thi đấu thời gian thực hoặc tham gia phòng thi với bạn bè qua mạng</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <button class="btn btn-secondary" id="btn-open-join-code">
+            <span>🔑</span> Nhập Mã Phòng
+          </button>
+          <button class="btn btn-primary" id="btn-open-create-room">
+            <span>➕</span> Tạo Phòng Thi Mới
+          </button>
+        </div>
+      </div>
+
+      <!-- Thanh lọc & tìm kiếm phòng -->
+      <div class="room-filter-toolbar">
+        <div class="filter-pills">
+          <button class="filter-pill-btn active" data-filter="all">Tất cả phòng</button>
+          <button class="filter-pill-btn" data-filter="waiting">🟡 Chưa bắt đầu</button>
+          <button class="filter-pill-btn" data-filter="in_progress">🟢 Đang diễn ra</button>
+          <button class="filter-pill-btn" data-filter="finished">🔴 Đã kết thúc</button>
+        </div>
+
+        <div class="room-search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="input-search-room" placeholder="Tìm theo tên phòng, chủ phòng...">
+        </div>
+      </div>
+
+      <!-- Lưới các phòng thi -->
+      <div class="rooms-grid" id="rooms-grid-container">
+        <!-- Render động từ JavaScript -->
+      </div>
+    </section>
+
+    <!-- MÀN HÌNH PHÒNG CHỜ (LOBBY WAITING SCREEN) -->
+    <section class="tab-pane" id="view-room-lobby">
+      <div class="room-lobby-wrapper">
+        <div class="lobby-hero-banner">
+          <h2 id="lobby-room-name" style="font-size: 1.8rem; font-weight: 800; color: #fff; margin-bottom: 0.5rem;">Phòng Thi Mạng</h2>
+          <p style="color: var(--text-muted);">Chia sẻ mã phòng này để bạn bè cùng tham gia:</p>
+
+          <div class="lobby-code-display" onclick="copyRoomCode(document.getElementById('lobby-room-code').textContent)" title="Bấm để sao chép">
+            <span id="lobby-room-code">------</span>
+            <span style="font-size: 1.1rem; cursor: pointer;">📋</span>
+          </div>
+
+          <div style="display: flex; justify-content: center; gap: 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
+            <span>👥 Số thí sinh: <strong id="lobby-participant-count" style="color: #fff;">1 người</strong></span>
+            <span>📶 Trạng thái: <strong style="color: #fbbf24;">Đang chờ bắt đầu</strong></span>
+          </div>
+        </div>
+
+        <!-- Danh sách thí sinh trong phòng -->
+        <div class="participants-list-wrap">
+          <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;">
+            Thí sinh trong phòng (<span id="lobby-count-sub">Trực tuyến</span>)
+          </h3>
+          <div class="participants-grid" id="lobby-participants-grid">
+            <!-- Danh sách render từ WebSocket -->
+          </div>
+        </div>
+
+        <!-- Điều khiển của Host / Member -->
+        <div class="lobby-control-bar">
+          <button class="btn btn-secondary" id="btn-leave-lobby">
+            <span>🚪</span> Rời Phòng
+          </button>
+
+          <div id="lobby-host-actions" style="display: none;">
+            <button class="btn btn-success btn-lg" id="btn-host-start-exam">
+              <span>🚀</span> Bắt Đầu Thi Ngay (Host)
+            </button>
+          </div>
+
+          <div id="lobby-member-waiting" style="display: none; color: #fbbf24; font-weight: 600;">
+            ⏳ Đang chờ chủ phòng bấm bắt đầu thi...
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MÀN HÌNH LÀM BÀI THI TRỰC TIẾP (LIVE EXAM SCREEN) -->
+    <section class="tab-pane" id="view-exam">
+      <div class="exam-viewport">
+        <!-- Topbar cố định -->
+        <div class="exam-sticky-topbar">
+          <div>
+            <h3 id="exam-title-display" style="font-size: 1.25rem; font-weight: 700; color: #fff;">Bài Thi Trực Tuyến</h3>
+            <span style="font-size: 0.8rem; color: var(--text-dim);">Hệ thống lưu câu trả lời tự động</span>
+          </div>
+
+          <!-- Đồng hồ đếm ngược -->
+          <div class="timer-box" id="exam-timer-box">
+            <span style="font-size: 1.2rem;">⏱️</span>
+            <span class="timer-display" id="exam-timer-text">00:00</span>
+          </div>
+
+          <!-- Tiến độ làm bài -->
+          <div class="exam-progress-indicator">
+            <span style="font-size: 0.85rem; color: var(--text-muted);" id="exam-progress-text">Đã làm 0/0 câu</span>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="exam-progress-fill"></div>
+            </div>
+          </div>
+
+          <!-- Nút nộp bài sớm & Nút kết thúc của Host -->
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-danger btn-sm" id="btn-host-end-exam" style="display: none;" title="Chủ phòng có thể kết thúc phòng thi ngay">
+              ⏹️ Kết Thúc Phòng
+            </button>
+            <button class="btn btn-primary" id="btn-submit-exam">
+              <span>🚩</span> Nộp Bài Sớm
+            </button>
+          </div>
+        </div>
+
+        <!-- Khung 2 cột: Thẻ câu hỏi & Bảng câu hỏi -->
+        <div class="exam-layout-grid">
+          <!-- Cột chính: Câu hỏi -->
+          <div class="question-card-main">
+            <div class="question-card-header">
+              <div style="display: flex; align-items: center; gap: 0.65rem;">
+                <span class="question-badge-num" id="exam-q-number">Câu 1</span>
+                <span class="diff-badge diff-medium" id="exam-q-difficulty">Trung bình</span>
+                <span style="font-size: 0.82rem; color: var(--text-dim);" id="exam-q-category">Giao thức Mạng</span>
+              </div>
+              <button class="btn btn-sm btn-secondary" id="btn-flag-question">
+                <span>🚩</span> Đánh dấu xem lại
+              </button>
+            </div>
+
+            <!-- Nội dung câu hỏi -->
+            <div class="question-content-text" id="exam-q-content">
+              Đang tải nội dung câu hỏi...
+            </div>
+
+            <!-- 4 Lựa chọn -->
+            <div class="options-list" id="exam-options-container">
+              <!-- Render động A, B, C, D -->
+            </div>
+
+            <!-- Nút câu trước / câu sau -->
+            <div class="question-nav-controls">
+              <button class="btn btn-secondary" id="btn-prev-question">
+                <span>⬅️</span> Câu Trước
+              </button>
+              <div style="color: var(--text-dim); font-size: 0.85rem;">
+                Bạn có thể tự do thay đổi lựa chọn trước khi hết giờ
+              </div>
+              <button class="btn btn-secondary" id="btn-next-question">
+                Câu Kế Tiếp <span>➡️</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Cột phải: Bảng điều hướng câu hỏi (Palette Grid) -->
+          <aside class="question-palette-card">
+            <div class="palette-title">
+              <span>Bảng Câu Hỏi</span>
+              <span style="font-size: 0.75rem; color: var(--text-dim);">Bấm số để chuyển câu</span>
+            </div>
+
+            <div class="palette-grid" id="exam-palette-grid">
+              <!-- Render các nút 1, 2, 3... -->
+            </div>
+
+            <div class="palette-legend">
+              <div class="legend-item">
+                <div class="legend-color-box" style="background: var(--primary);"></div>
+                <span>Đã trả lời</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color-box" style="background: rgba(255,255,255,0.1);"></div>
+                <span>Chưa làm</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color-box" style="border: 2px solid #fff;"></div>
+                <span>Đang chọn</span>
+              </div>
+              <div class="legend-item">
+                <div class="legend-color-box" style="background: var(--warning);"></div>
+                <span>Đánh dấu</span>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- MÀN HÌNH BẢNG XẾP HẠNG & KẾT QUẢ THI PHÒNG (LEADERBOARD) -->
+    <section class="tab-pane" id="view-room-results">
+      <div class="results-wrapper">
+        <div style="text-align: center; margin-bottom: 2rem;">
+          <h2 style="font-size: 2rem; font-weight: 800; color: #fff;">🏆 Bảng Xếp Hạng Phòng Thi</h2>
+          <p style="color: var(--text-muted);">Mã phòng: <strong id="res-room-code" style="color: #a5b4fc;">------</strong></p>
+        </div>
+
+        <!-- Podium Top 3 -->
+        <div class="podium-container">
+          <!-- Top 2 -->
+          <div class="podium-step podium-step-2">
+            <div class="podium-avatar">🥈</div>
+            <div class="podium-bar">
+              <div id="podium-top2">---</div>
+            </div>
+          </div>
+          <!-- Top 1 -->
+          <div class="podium-step podium-step-1">
+            <div class="podium-avatar">👑</div>
+            <div class="podium-bar">
+              <div id="podium-top1">---</div>
+            </div>
+          </div>
+          <!-- Top 3 -->
+          <div class="podium-step podium-step-3">
+            <div class="podium-avatar">🥉</div>
+            <div class="podium-bar">
+              <div id="podium-top3">---</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bảng xếp hạng chi tiết -->
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Hạng</th>
+                <th>Thí Sinh</th>
+                <th>Điểm Số (Thang 10)</th>
+                <th>Số Câu Đúng</th>
+                <th>Thời Gian</th>
+                <th>Trạng Thái</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboard-table-body">
+              <!-- Render động -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+          <button class="btn btn-secondary" id="btn-back-to-rooms">
+            <span>⬅️</span> Về Danh Sách Phòng
+          </button>
+          <button class="btn btn-primary" id="btn-view-personal-details" style="display: none;">
+            <span>📝</span> Xem Chi Tiết Đáp Án Của Bạn
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: CHẾ ĐỘ LUYỆN TẬP -->
+    <section class="tab-pane" id="tab-practice">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2><span>⚡</span> Chế Độ Thi Luyện Tập</h2>
+          <p>Tự rèn luyện kỹ năng với các đề thi tùy biến số lượng và độ khó theo ý muốn</p>
+        </div>
+      </div>
+
+      <div style="max-width: 750px; margin: 0 auto;">
+        <div class="question-card-main">
+          <h3 style="font-size: 1.3rem; font-weight: 700; color: #fff; margin-bottom: 1.5rem;">
+            ⚙️ Thiết Lập Bài Thi Luyện Tập
+          </h3>
+
+          <div class="form-group">
+            <label class="form-label" for="practice-category-select">Chủ đề kiến thức</label>
+            <select class="form-control" id="practice-category-select">
+              <option value="all">Tất cả chủ đề</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="practice-duration">Thời gian làm bài (Phút)</label>
+            <input type="number" class="form-control" id="practice-duration" value="10" min="1" max="180">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Cấu hình phân loại số lượng câu hỏi theo độ khó</label>
+            <div class="form-row-3">
+              <div>
+                <label style="font-size: 0.8rem; color: #34d399; font-weight: 600;">Dễ (Easy)</label>
+                <input type="number" class="form-control" id="practice-easy" value="5" min="0" max="50">
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; color: #fbbf24; font-weight: 600;">Trung bình (Medium)</label>
+                <input type="number" class="form-control" id="practice-medium" value="3" min="0" max="50">
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; color: #f87171; font-weight: 600;">Khó (Hard)</label>
+                <input type="number" class="form-control" id="practice-hard" value="2" min="0" max="50">
+              </div>
+            </div>
+            <div style="font-size: 0.82rem; color: var(--text-dim); margin-top: 0.5rem;">
+              Tổng cộng đề thi sẽ có 10 câu hỏi ngẫu nhiên được trích xuất từ ngân hàng đề.
+            </div>
+          </div>
+
+          <div style="margin-top: 2rem;">
+            <button class="btn btn-primary btn-lg" id="btn-start-practice" style="width: 100%;">
+              <span>🚀</span> Bắt Đầu Luyện Tập Ngay
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: NGÂN HÀNG CÂU HỎI -->
+    <section class="tab-pane" id="tab-bank">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2><span>📚</span> Ngân Hàng Câu Hỏi Mạng Máy Tính</h2>
+          <p>Xem toàn bộ kho câu hỏi, phân loại theo độ khó và thêm câu hỏi mới</p>
+        </div>
+        <div>
+          <button class="btn btn-primary" id="btn-open-add-question">
+            <span>➕</span> Thêm Câu Hỏi Mới
+          </button>
+        </div>
+      </div>
+
+      <!-- Bộ lọc ngân hàng -->
+      <div class="room-filter-toolbar">
+        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+          <div>
+            <label style="font-size: 0.78rem; color: var(--text-dim); display: block;">Độ khó</label>
+            <select class="form-control" id="filter-bank-diff" style="padding: 0.45rem 1rem; font-size: 0.85rem;">
+              <option value="all">Tất cả độ khó</option>
+              <option value="easy">Dễ</option>
+              <option value="medium">Trung bình</option>
+              <option value="hard">Khó</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size: 0.78rem; color: var(--text-dim); display: block;">Chủ đề</label>
+            <select class="form-control" id="filter-bank-cat" style="padding: 0.45rem 1rem; font-size: 0.85rem;">
+              <option value="all">Tất cả chủ đề</option>
+            </select>
+          </div>
+          <div style="margin-top: 1.1rem; color: var(--text-muted); font-size: 0.85rem;">
+            Tổng: <strong id="bank-total-count" style="color: #fff;">0 câu hỏi</strong>
+          </div>
+        </div>
+
+        <div class="room-search-box" style="margin-top: 1.1rem;">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="input-bank-search" placeholder="Tìm kiếm nội dung câu hỏi...">
+        </div>
+      </div>
+
+      <!-- Danh sách câu hỏi -->
+      <div id="question-bank-list">
+        <!-- Render động -->
+      </div>
+    </section>
+
+    <!-- TAB 4: LỊCH SỬ & THỐNG KÊ ĐỒ THỊ -->
+    <section class="tab-pane" id="tab-history">
+      <div class="section-header">
+        <div class="section-title-wrap">
+          <h2><span>📊</span> Thống Kê &amp; Lịch Sử Làm Bài</h2>
+          <p>Báo cáo trực quan bằng đồ thị về kết quả học tập và các bài thi đã làm của bạn</p>
+        </div>
+      </div>
+
+      <!-- 4 Thẻ KPI tổng quan -->
+      <div class="stats-kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-icon-box" style="background: rgba(99, 102, 241, 0.15); color: #818cf8;">📈</div>
+          <div>
+            <div class="kpi-val" id="kpi-total-exams">0</div>
+            <div class="kpi-label">Tổng bài thi đã làm</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon-box" style="background: rgba(16, 185, 129, 0.15); color: #34d399;">🎯</div>
+          <div>
+            <div class="kpi-val" id="kpi-avg-score">0.0</div>
+            <div class="kpi-label">Điểm trung bình</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon-box" style="background: rgba(245, 158, 11, 0.15); color: #fbbf24;">🏆</div>
+          <div>
+            <div class="kpi-val" id="kpi-highest-score">0.0</div>
+            <div class="kpi-label">Điểm cao nhất</div>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-icon-box" style="background: rgba(6, 182, 212, 0.15); color: #22d3ee;">⚡</div>
+          <div>
+            <div class="kpi-val" id="kpi-accuracy-pct">0%</div>
+            <div class="kpi-label">Tỷ lệ trả lời đúng</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Khu vực Đồ thị Trực Quan -->
+      <div class="charts-grid">
+        <!-- Đồ thị 1: Biến động điểm số -->
+        <div class="chart-card">
+          <h3><span>📈</span> Biến Động Điểm Số Qua Các Bài Thi</h3>
+          <div class="chart-canvas-wrap">
+            <canvas id="chart-score-trend"></canvas>
+          </div>
+        </div>
+
+        <!-- Đồ thị 3: Tỷ lệ Đúng / Sai -->
+        <div class="chart-card">
+          <h3><span>🍩</span> Phân Bố Kết Quả Trả Lời</h3>
+          <div class="chart-canvas-wrap">
+            <canvas id="chart-results-ratio"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Đồ thị 2: Độ chính xác theo độ khó -->
+      <div class="chart-card" style="margin-bottom: 2rem;">
+        <h3><span>📊</span> Tỷ Lệ Trả Lời Đúng Theo Độ Khó (Dễ - Trung Bình - Khó)</h3>
+        <div class="chart-canvas-wrap" style="height: 220px;">
+          <canvas id="chart-difficulty-stats"></canvas>
+        </div>
+      </div>
+
+      <!-- Bảng lịch sử các bài thi -->
+      <div class="question-card-main">
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: #fff; margin-bottom: 1.25rem;">
+          📑 Lịch Sử Các Bài Thi Đã Thực Hiện
+        </h3>
+        <div class="table-responsive">
+          <table class="custom-table">
+            <thead>
+              <tr>
+                <th>Loại Hình</th>
+                <th>Tên Bài Thi / Phòng</th>
+                <th>Điểm Số</th>
+                <th>Số Câu Đúng</th>
+                <th>Thời Gian Làm</th>
+                <th>Ngày Làm Bài</th>
+                <th>Thao Tác</th>
+              </tr>
+            </thead>
+            <tbody id="history-table-body">
+              <!-- Render động từ API -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==================== CÁC MODAL HỘP THOẠI ==================== -->
+
+  <!-- Modal Tạo Phòng Thi Mới -->
+  <div class="modal-backdrop" id="modal-create-room">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>➕ Tạo Phòng Thi Mới</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="form-create-room">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="cr-room-name">Tên phòng thi *</label>
+            <input type="text" class="form-control" id="cr-room-name" required placeholder="Ví dụ: Thi Giữa Kỳ Mạng Máy Tính - Ca 1">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="cr-duration">Thời gian thi (phút) *</label>
+            <input type="number" class="form-control" id="cr-duration" required value="15" min="1" max="180">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Thiết lập số lượng câu hỏi theo độ khó</label>
+            <div class="form-row-3">
+              <div>
+                <label style="font-size: 0.8rem; color: #34d399; font-weight: 600;">Dễ (Easy)</label>
+                <input type="number" class="form-control" id="cr-easy" value="5" min="0" max="50">
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; color: #fbbf24; font-weight: 600;">Trung bình (Medium)</label>
+                <input type="number" class="form-control" id="cr-medium" value="3" min="0" max="50">
+              </div>
+              <div>
+                <label style="font-size: 0.8rem; color: #f87171; font-weight: 600;">Khó (Hard)</label>
+                <input type="number" class="form-control" id="cr-hard" value="2" min="0" max="50">
+              </div>
+            </div>
+            <div style="font-size: 0.82rem; color: var(--text-dim); margin-top: 0.5rem;">
+              Chủ phòng quyết định thời điểm bắt đầu thi và kết thúc phòng thi.
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Huỷ Bỏ</button>
+          <button type="submit" class="btn btn-primary">🚀 Khởi Tạo Phòng Thi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Thêm Câu Hỏi Mới -->
+  <div class="modal-backdrop" id="modal-add-question">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>➕ Thêm Câu Hỏi Mới Vào Ngân Hàng</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <form id="form-add-question">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="new-q-content">Nội dung câu hỏi *</label>
+            <textarea class="form-control" id="new-q-content" rows="3" required placeholder="Nhập câu hỏi trắc nghiệm..."></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">4 Phương án trả lời *</label>
+            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+              <input type="text" class="form-control" id="new-q-opt-a" required placeholder="Phương án A">
+              <input type="text" class="form-control" id="new-q-opt-b" required placeholder="Phương án B">
+              <input type="text" class="form-control" id="new-q-opt-c" required placeholder="Phương án C">
+              <input type="text" class="form-control" id="new-q-opt-d" required placeholder="Phương án D">
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem;">
+            <div class="form-group">
+              <label class="form-label" for="new-q-correct">Đáp án đúng *</label>
+              <select class="form-control" id="new-q-correct">
+                <option value="A">A</option>
+                <option value="B">B</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="new-q-diff">Độ khó *</label>
+              <select class="form-control" id="new-q-diff">
+                <option value="easy">Dễ</option>
+                <option value="medium" selected>Trung bình</option>
+                <option value="hard">Khó</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="new-q-category">Chủ đề</label>
+              <select class="form-control" id="new-q-category">
+                <option value="Mạng máy tính">Mạng máy tính</option>
+                <option value="Giao thức Mạng">Giao thức Mạng</option>
+                <option value="Lập trình Socket">Lập trình Socket</option>
+                <option value="Địa chỉ IP & Subnetting">Địa chỉ IP &amp; Subnetting</option>
+                <option value="An toàn Mạng">An toàn Mạng</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="new-q-explain">Lời giải thích chi tiết (Tuỳ chọn)</label>
+            <textarea class="form-control" id="new-q-explain" rows="2" placeholder="Giải thích lý do vì sao đáp án này đúng..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-close-modal">Đóng</button>
+          <button type="submit" class="btn btn-primary">Lưu Câu Hỏi</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Kết Quả Luyện Tập Tức Thì -->
+  <div class="modal-backdrop" id="modal-practice-result">
+    <div class="modal-dialog" style="max-width: 480px; text-align: center;">
+      <div class="modal-header" style="justify-content: center; position: relative;">
+        <h3 style="font-size: 1.4rem;">🎉 Kết Quả Luyện Tập</h3>
+        <button class="modal-close-btn" style="position: absolute; right: 1.5rem;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="font-size: 3.5rem; font-weight: 800; color: #34d399; margin: 0.5rem 0;" id="pr-score-display">
+          10.0
+        </div>
+        <div style="font-size: 1.1rem; color: #fff; font-weight: 700; margin-bottom: 0.5rem;" id="pr-evaluation-text">
+          🌟 Xuất sắc!
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin: 1.5rem 0; background: rgba(0,0,0,0.25); padding: 1rem; border-radius: var(--radius-md);">
+          <div>
+            <div style="font-size: 0.8rem; color: var(--text-dim);">Số câu trả lời đúng</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: #fff;" id="pr-correct-display">10/10</div>
+          </div>
+          <div>
+            <div style="font-size: 0.8rem; color: var(--text-dim);">Độ chính xác</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: #22d3ee;" id="pr-pct-display">100%</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: center; gap: 1rem;">
+        <button type="button" class="btn btn-secondary btn-close-modal">Đóng</button>
+        <button type="button" class="btn btn-primary" id="btn-view-practice-details">
+          <span>🔍</span> Xem Đáp Án &amp; Lời Giải
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Xem Chi Tiết Đáp Án & Lời Giải Bài Thi -->
+  <div class="modal-backdrop" id="modal-review-exam">
+    <div class="modal-dialog" style="max-width: 850px;">
+      <div class="modal-header">
+        <h3 id="review-exam-title">Chi Tiết Bài Làm &amp; Đáp Án</h3>
+        <button class="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="review-questions-container" style="max-height: 70vh; overflow-y: auto;">
+        <!-- Render động các câu hỏi và đáp án -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-close-modal">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Thông Báo Góc Màn Hình -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts -->
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/websocket.js"></script>
+  <script src="/static/js/exam.js"></script>
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

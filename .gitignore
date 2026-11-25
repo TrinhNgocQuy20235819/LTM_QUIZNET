@@ -24,3 +24,9 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+# C/C++ build artifacts & Network Logs
+*.o
+*.exe
+c_backend/quiznet_server
+*.log

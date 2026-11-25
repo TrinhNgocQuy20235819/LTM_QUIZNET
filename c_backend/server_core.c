@@ -44,6 +44,10 @@ void dispatch_command(ClientSession *client, char *line) {
         handle_get_questions(g_db, client, payload);
     } else if (strcmp(cmd, "ADD_QUESTION") == 0) {
         handle_add_question(g_db, client, payload);
+    } else if (strcmp(cmd, "GET_CATEGORIES") == 0) {
+        handle_get_categories(g_db, client);
+    } else if (strcmp(cmd, "GET_STUDENTS_LIST") == 0) {
+        handle_get_students_list(g_db, client);
     }
     // ===== CHỪA SẴN HOOK CHO THÀNH VIÊN 2 (ROOM MANAGER) =====
     // else if (strcmp(cmd, "CREATE_ROOM") == 0) { ... }

@@ -25,4 +25,14 @@ void handle_get_questions(sqlite3 *db, ClientSession *client, const char *payloa
  */
 void handle_add_question(sqlite3 *db, ClientSession *client, const char *payload);
 
+/**
+ * Lấy danh sách chủ đề câu hỏi: CMD GET_CATEGORIES|{}
+ */
+void handle_get_categories(sqlite3 *db, ClientSession *client);
+
+/**
+ * Lấy danh sách tài khoản sinh viên để Host chọn vào phòng thi: CMD GET_STUDENTS_LIST|{}
+ */
+void handle_get_students_list(sqlite3 *db, ClientSession *client);
+
 #endif

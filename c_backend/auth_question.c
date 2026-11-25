@@ -240,3 +240,68 @@ void handle_add_question(sqlite3 *db, ClientSession *client, const char *payload
 
     cJSON_Delete(root);
 }
+
+void handle_get_categories(sqlite3 *db, ClientSession *client) {
+    if (!client->is_logged_in) {
+        send_line(client->sock_fd, "ERROR", "{\"message\":\"Vui long dang nhap truoc!\"}");
+        return;
+    }
+
+    const char *sql = "SELECT DISTINCT category FROM questions ORDER BY category ASC;";
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        send_line(client->sock_fd, "ERROR", "{\"message\":\"Loi truy van danh muc\"}");
+        return;
+    }
+
+    cJSON *arr = cJSON_CreateArray();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *cat = (const char *)sqlite3_column_text(stmt, 0);
+        if (cat) {
+            cJSON_AddItemToArray(arr, cJSON_CreateString(cat));
+        }
+    }
+    sqlite3_finalize(stmt);
+
+    cJSON *res = cJSON_CreateObject();
+    cJSON_AddItemToObject(res, "categories", arr);
+
+    char *res_str = cJSON_PrintUnformatted(res);
+    send_line(client->sock_fd, "CATEGORIES_LIST", res_str);
+
+    free(res_str);
+    cJSON_Delete(res);
+}
+
+void handle_get_students_list(sqlite3 *db, ClientSession *client) {
+    if (!client->is_logged_in) {
+        send_line(client->sock_fd, "ERROR", "{\"message\":\"Vui long dang nhap truoc!\"}");
+        return;
+    }
+
+    const char *sql = "SELECT id, username FROM users WHERE role = 'student' ORDER BY username ASC;";
+    sqlite3_stmt *stmt = NULL;
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        send_line(client->sock_fd, "ERROR", "{\"message\":\"Loi truy van danh sach sinh vien\"}");
+        return;
+    }
+
+    cJSON *arr = cJSON_CreateArray();
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        cJSON *u = cJSON_CreateObject();
+        cJSON_AddNumberToObject(u, "id", sqlite3_column_int(stmt, 0));
+        cJSON_AddStringToObject(u, "username", (const char *)sqlite3_column_text(stmt, 1));
+        cJSON_AddItemToArray(arr, u);
+    }
+    sqlite3_finalize(stmt);
+
+    cJSON *res = cJSON_CreateObject();
+    cJSON_AddNumberToObject(res, "total", cJSON_GetArraySize(arr));
+    cJSON_AddItemToObject(res, "students", arr);
+
+    char *res_str = cJSON_PrintUnformatted(res);
+    send_line(client->sock_fd, "STUDENTS_LIST", res_str);
+
+    free(res_str);
+    cJSON_Delete(res);
+}

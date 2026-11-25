@@ -32,41 +32,42 @@ LTM_QUIZNET/
 ### ✅ Phần đã hoàn thành:
 * Tạo bộ khung TCP Socket (`socket`, `bind`, `listen`, `accept`, `select()`) tại `server_core.c` (Port `9000`).
 * Cài đặt bộ đệm xử lý truyền dòng (`recv_buf`, `extract_line`, `send_all`, `send_line`) chống dính/phân mảnh gói TCP tại `stream_io.c`.
-* Xây dựng các lệnh `REGISTER`, `LOGIN` (tự động gửi `FORCE_LOGOUT` đá socket cũ khi đăng nhập trùng), `GET_QUESTIONS`, `ADD_QUESTION` (chỉ `role == "admin"`).
+* Xây dựng các lệnh `REGISTER`, `LOGIN` (tự động gửi `FORCE_LOGOUT` đá socket cũ khi đăng nhập trùng), `GET_QUESTIONS`, `ADD_QUESTION` (chỉ `role == "admin"`), `GET_CATEGORIES` (lấy danh sách chủ đề) và `GET_STUDENTS_LIST` (lấy danh sách sinh viên cho TV2 chọn vào phòng thi).
 
 ### 📋 Công việc cần làm tiếp:
-1. **Bổ sung lệnh `GET_CATEGORIES` trong `auth_question.c`**:
-   * Truy vấn `SELECT DISTINCT category FROM questions` trả về mảng chủ đề cho dropdown lọc ở giao diện.
-2. **(Nâng cao - Tùy chọn) Băm mật khẩu**:
+1. **(Nâng cao - Tùy chọn) Băm mật khẩu**:
    * Dùng hàm hash (SHA-256) thay vì lưu mật khẩu thô trong bảng `users`.
-3. **Cập nhật Giao diện Client (`static/index.html`, `static/js/app.js`)**:
+2. **Cập nhật Giao diện Client (`static/index.html`, `static/js/app.js`)**:
    * Tạo Modal/Màn hình **Đăng nhập & Đăng ký** bắt buộc trước khi vào sảnh.
    * Hiển thị tên người dùng + Role (`Admin` / `Student`) và trạng thái phiên Socket trên Header.
    * Ẩn hoặc khóa nút **"Thêm câu hỏi mới"** nếu tài khoản đang đăng nhập là `student`.
-4. **Hỗ trợ tích hợp**:
+3. **Hỗ trợ tích hợp**:
    * Mở hook trong `dispatch_command()` của `server_core.c` để gắn các hàm xử lý lệnh của TV2 và TV3.
 
 ---
 
 ## 👤 3. KẾ HOẠCH CHI TIẾT — THÀNH VIÊN 2
-**Trọng tâm:** *Quản lý Phòng thi trực tuyến, Đồng bộ Realtime, Luyện tập & Ghi log mạng.*
+**Trọng tâm:** *Quản lý Phòng thi theo lịch hẹn & danh sách sinh viên (Whitelist), Đồng bộ Realtime, Luyện tập & Ghi log mạng.*
 
 ### 📋 Công việc cần làm (Backend C):
-1. **Xây dựng Module Ghi log mạng (`logger.h` / `logger.c`)**:
-   * Viết hàm `log_network_event(ClientSession *c, const char *cmd, const char *detail)` ghi ra file `network.log` kèm thời gian thực, `IP:Port`, `FD`, `Username` và kích thước dữ liệu.
-   * Ghi log các sự kiện: Kết nối mới, Ngắt kết nối đột ngột, Tạo phòng, Bắt đầu thi, Lỗi phân quyền.
-2. **Xây dựng Module Quản lý Phòng thi (`room_manager.h` / `room_manager.c`)**:
-   * Định nghĩa `struct ExamRoom` và `struct Participant` trên RAM, bảo vệ bằng `pthread_mutex_t`.
+1. **Cập nhật Schema SQLite (`exam_rooms` & `activity_logs`)**:
+   * Bổ sung vào bảng `exam_rooms`: `scheduled_start_time TIMESTAMP` (giờ hẹn bắt đầu) và `allowed_users_json TEXT` (danh sách username sinh viên được phép thi).
+   * Tạo bảng `activity_logs` để lưu lịch sử sự kiện mạng song song với file `network.log`.
+2. **Xây dựng Module Ghi log mạng (`logger.h` / `logger.c`)**:
+   * Viết hàm `log_network_event(ClientSession *c, const char *cmd, const char *detail)` ghi ra file `network.log` và bảng `activity_logs` kèm thời gian thực, `IP:Port`, `Socket FD`, `Username`, kích thước bytes và trạng thái.
+3. **Xây dựng Module Quản lý Phòng thi (`room_manager.h` / `room_manager.c`)**:
+   * Định nghĩa `struct ExamRoom` (có thêm `scheduled_start_time`, mảng `allowed_users`, cờ `is_public`) và `struct Participant` trên RAM, bảo vệ bằng `pthread_mutex_t`.
    * Cài đặt các lệnh giao thức:
-     * `CREATE_ROOM|{"room_name":"...","duration":15,"easy":5,"medium":3,"hard":2}`: Sinh mã phòng 6 ký tự, lưu RAM + bảng `exam_rooms` SQLite, broadcast sảnh.
-     * `LIST_ROOMS|{}`: Trả danh sách phòng kèm trạng thái (`waiting`, `in_progress`, `finished`) và số người hiện có.
-     * `JOIN_ROOM|{"room_code":"..."}` & `LEAVE_ROOM|{"room_code":"..."}`: Kiểm tra điều kiện phòng còn `waiting`, thêm/xóa `sock_fd` khỏi phòng, broadcast `PARTICIPANT_JOINED` cho cả phòng.
-     * `START_EXAM|{"room_code":"..."}`: Kiểm tra quyền Host, gọi SQLite bốc ngẫu nhiên câu hỏi theo độ khó, **lọc bỏ trường `correct_answer`**, broadcast `EXAM_STARTED` tới toàn phòng và khởi tạo luồng `pthread_create()` đếm ngược thời gian.
+     * `CREATE_ROOM|{"room_name":"...","duration":15,"easy":5,"medium":3,"hard":2,"start_time":"2026-11-25 14:30:00","allowed_users":["sv1","sv2"],"is_public":0}`: Sinh định danh phòng, lưu RAM + SQLite, thực hiện **Selective Broadcast** (chỉ đẩy phòng thi tới các `sock_fd` của sinh viên có tên trong `allowed_users` và Host).
+     * `LIST_ROOMS|{}`: Lọc và chỉ trả về các phòng mà `client->username` có quyền thấy (nằm trong danh sách `allowed_users`, là Host, hoặc phòng công khai) kèm trạng thái (`waiting`, `in_progress`, `finished`).
+     * `JOIN_ROOM|{"room_code":"..."}` & `LEAVE_ROOM|{"room_code":"..."}`: Sinh viên bấm thẳng vào phòng trên giao diện **không cần nhập mã**; kiểm tra quyền nằm trong Whitelist + phòng còn `waiting`, thêm `sock_fd` vào phòng, broadcast `PARTICIPANT_JOINED` cho cả phòng chờ đến giờ thi.
+     * `START_EXAM|{"room_code":"..."}` & **Luồng tự động bắt đầu theo lịch**: Hỗ trợ cả **2 cơ chế**: (1) Luồng Timer kiểm tra mỗi giây: khi tới `scheduled_start_time` tự động phát đề; (2) Chủ phòng (Host) bấm nút "Bắt đầu ngay" hoặc "Kết thúc sớm". Bốc đề ngẫu nhiên, **lọc bỏ đáp án đúng**, broadcast `EXAM_STARTED` tới toàn phòng và chạy đồng hồ đếm ngược tập trung.
      * `START_PRACTICE|{"easy":5,"medium":3,"hard":2,"category":"all","duration":10}`: Bốc ngẫu nhiên đề cá nhân (ẩn đáp án) trả riêng cho 1 client.
 
 ### 📋 Công việc cần làm (Giao diện Client):
-* Sửa `app.js` / `websocket.js` phần **Sảnh danh sách phòng**, **Phòng chờ (Lobby)** và **Cấu hình Luyện tập** chuyển từ gọi `fetch('/api/...')` sang gửi gói tin lệnh qua Socket thống nhất.
-* Hiển thị thêm thông tin kết nối mạng (ví dụ trạng thái Online/IP:Port) của các thí sinh trong Phòng chờ.
+* Form Tạo phòng: Gọi `GET_STUDENTS_LIST` để hiển thị danh sách sinh viên cho Chủ phòng tick chọn + ô chọn Thời gian bắt đầu (lịch hẹn) + tùy chọn phòng công khai.
+* Sảnh danh sách phòng: Chỉ hiển thị các phòng được cấp quyền, sinh viên bấm "Vào phòng" trực tiếp **không cần nhập mã**.
+* Phòng chờ (Lobby): Hiển thị đồng hồ đếm ngược tới giờ thi (nếu đang đợi lịch) và danh sách thí sinh kết nối theo thời gian thực.
 
 ---
 

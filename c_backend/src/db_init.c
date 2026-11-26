@@ -48,6 +48,7 @@ void init_database_schema(sqlite3 *db) {
         "  category TEXT NOT NULL,"
         "  explanation TEXT,"
         "  created_by TEXT DEFAULT 'admin',"
+        "  purpose TEXT NOT NULL DEFAULT 'practice',"
         "  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
         ");"
         "CREATE TABLE IF NOT EXISTS exam_rooms ("
@@ -105,6 +106,14 @@ void init_database_schema(sqlite3 *db) {
         "  event TEXT NOT NULL,"
         "  status TEXT,"
         "  details TEXT"
+        ");"
+        "CREATE TABLE IF NOT EXISTS students ("
+        "  user_id INTEGER PRIMARY KEY,"
+        "  student_code TEXT UNIQUE,"
+        "  full_name TEXT,"
+        "  class_name TEXT,"
+        "  course TEXT,"
+        "  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"
         ");";
 
     if (sqlite3_exec(db, schema_sql, NULL, NULL, &err_msg) != SQLITE_OK) {
@@ -115,6 +124,13 @@ void init_database_schema(sqlite3 *db) {
     // 3. Tự động nâng cấp (Migration) nếu bảng cũ thiếu cột mới
     if (!column_exists(db, "questions", "created_by"))
         sqlite3_exec(db, "ALTER TABLE questions ADD COLUMN created_by TEXT DEFAULT 'admin';", NULL, NULL, NULL);
+
+    if (!column_exists(db, "questions", "purpose")) {
+        sqlite3_exec(db, "ALTER TABLE questions ADD COLUMN purpose TEXT NOT NULL DEFAULT 'practice';", NULL, NULL, NULL);
+        // Tự động chuyển các câu có ID chẵn sang kho 'exam' (chỉ chạy đúng 1 lần khi nâng cấp)
+        // Giúp hệ thống có sẵn ~15 câu cho Thi chính thức và ~16 câu cho Luyện tập để test ngay!
+        sqlite3_exec(db, "UPDATE questions SET purpose = 'exam' WHERE id % 2 = 0;", NULL, NULL, NULL);
+    }
 
     if (!column_exists(db, "exam_rooms", "room_type"))
         sqlite3_exec(db, "ALTER TABLE exam_rooms ADD COLUMN room_type TEXT DEFAULT 'exam';", NULL, NULL, NULL);
@@ -135,6 +151,14 @@ void init_database_schema(sqlite3 *db) {
         "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES ('sinhvien1', '123', 'student');"
         "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES ('sinhvien2', '123', 'student');";
     sqlite3_exec(db, seed_users_sql, NULL, NULL, NULL);
+
+    // 5. Nạp hồ sơ mẫu vào bảng students (nếu chưa có)
+    const char *seed_students_sql =
+        "INSERT OR IGNORE INTO students (user_id, student_code, full_name, class_name, course) "
+        "SELECT id, 'B21DCCN001', 'Nguyen Van A', 'D21CQCN01', 'K21' FROM users WHERE username = 'sinhvien1';"
+        "INSERT OR IGNORE INTO students (user_id, student_code, full_name, class_name, course) "
+        "SELECT id, 'B21DCCN002', 'Tran Thi B', 'D21CQCN02', 'K21' FROM users WHERE username = 'sinhvien2';";
+    sqlite3_exec(db, seed_students_sql, NULL, NULL, NULL);
 
     printf("[DB] Da kiem tra va dong bo cau truc 6 bang & tai khoan mau thanh cong!\n");
 }

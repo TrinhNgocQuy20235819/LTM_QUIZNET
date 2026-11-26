@@ -9,7 +9,8 @@
 #include <sqlite3.h>
 
 #include "stream_io.h"
-#include "auth_question.h"
+#include "auth.h"
+#include "question.h"
 #include "db_init.h"
 
 #define SERVER_PORT 9000
@@ -41,6 +42,8 @@ void dispatch_command(ClientSession *client, char *line) {
         handle_register(g_db, client, payload);
     } else if (strcmp(cmd, "LOGIN") == 0) {
         handle_login(g_db, client, g_clients, MAX_CLIENTS, payload);
+    } else if (strcmp(cmd, "LOGOUT") == 0) {
+        handle_logout(client);
     } else if (strcmp(cmd, "GET_QUESTIONS") == 0) {
         handle_get_questions(g_db, client, payload);
     } else if (strcmp(cmd, "ADD_QUESTION") == 0) {
@@ -48,7 +51,7 @@ void dispatch_command(ClientSession *client, char *line) {
     } else if (strcmp(cmd, "GET_CATEGORIES") == 0) {
         handle_get_categories(g_db, client);
     } else if (strcmp(cmd, "GET_STUDENTS_LIST") == 0) {
-        handle_get_students_list(g_db, client);
+        handle_get_students_list(g_db, client, payload);
     }
     // ===== CHỪA SẴN HOOK CHO THÀNH VIÊN 2 (ROOM MANAGER) =====
     // else if (strcmp(cmd, "CREATE_ROOM") == 0) { ... }

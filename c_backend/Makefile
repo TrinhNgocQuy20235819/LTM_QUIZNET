@@ -1,18 +1,23 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -std=c11 -O2 -D_POSIX_C_SOURCE=200809L
+CFLAGS = -Wall -Wextra -std=c11 -O2 -D_POSIX_C_SOURCE=200809L -Iinclude -Ilib
 LDFLAGS = -lpthread -lsqlite3
 
-SRCS = server_core.c stream_io.c auth_question.c cJSON.c
-OBJS = $(SRCS:.c=.o)
+SRC_FILES = $(wildcard src/*.c) $(wildcard lib/*.c)
+OBJ_FILES = $(patsubst %.c, build/%.o, $(notdir $(SRC_FILES)))
 TARGET = quiznet_server
+
+VPATH = src:lib
 
 all: $(TARGET)
 
-$(TARGET): $(OBJS)
+$(TARGET): $(OBJ_FILES)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-%.o: %.c
+build/%.o: %.c | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
+build:
+	mkdir -p build
+
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -rf build $(TARGET)

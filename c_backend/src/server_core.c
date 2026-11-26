@@ -10,6 +10,7 @@
 
 #include "stream_io.h"
 #include "auth_question.h"
+#include "db_init.h"
 
 #define SERVER_PORT 9000
 #define MAX_CLIENTS 128
@@ -72,7 +73,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "[DB ERROR] Khong the mo CSDL tai '%s': %s\n", db_path, sqlite3_errmsg(g_db));
         return 1;
     }
-    sqlite3_exec(g_db, "PRAGMA foreign_keys = ON;", NULL, NULL, NULL);
+    init_database_schema(g_db);
     printf("[DB] Da ket noi thanh cong SQLite: %s\n", db_path);
 
     for (int i = 0; i < MAX_CLIENTS; i++) {

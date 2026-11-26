@@ -30,3 +30,5 @@ $RECYCLE.BIN/
 *.exe
 c_backend/quiznet_server
 *.log
+*.db-wal
+*.db-shm
